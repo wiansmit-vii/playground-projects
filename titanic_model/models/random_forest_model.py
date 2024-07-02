@@ -3,17 +3,32 @@ import numpy as np
 from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import StratifiedKFold, cross_val_score, GridSearchCV
+from sklearn.metrics import accuracy_score
 
-from ..data.raw.data_prep import train_data_cleaned, test_data_cleaned
+'''
+The following relative import works because Python allows relative imports 
+within packages. Because random_forest_model.py and data_prep.py are within the 
+same package structure, Python can resolve the import based on relative paths
 
-from data.raw.data_prep import train_data_cleaned, test_data_cleaned
+For example:
 
-from data.raw.data_prep import train_data_cleaned
+If random_forest_model.py is in a directory named models/ and data_prep.py is 
+in a sibling directory named data/, Python treats models/ and data/ as parts 
+of the same package.
 
+Python treats directories with __init__.py files as packages. If models/ and 
+data/ are structured as packages (i.e., they contain __init__.py files), Python 
+considers them part of the same package namespace.
+'''
+from data_prep import train_data_cleaned, test_data_cleaned
 
 # BUILD AND TRAIN THE MODEL
 # Train / Validatoin Split
 train_data_split, validation_data_split = train_test_split(train_data_cleaned, test_size=0.2, random_state=42)
+
+# Confirming splits
+train_data_split.info()
+validation_data_split.info()
 
 # Separate features and target
 X_train_data = train_data_split.drop('Survived', axis=1)
@@ -29,11 +44,12 @@ model = RandomForestClassifier(random_state=42)
 
 # Define parameter grid for GridSearchCV
 param_grid = {
-    'classifier__n_estimators': [100, 200, 300],
-    'classifier__max_features': ['auto', 'sqrt'],
-    'classifier__max_depth': [None, 10, 20],
-    'classifier__min_samples_split': [2, 5],
-    'classifier__min_samples_leaf': [1, 2]
+    'n_estimators': [100, 200, 300],
+    'max_features': ['log2', 'sqrt', 0.5],
+    'max_depth': [None, 10, 20],
+    'min_samples_split': [2, 5],
+    'min_samples_leaf': [1, 2],
+    'bootstrap': [True, False]
 }
 
 # Cross-validation setup
@@ -48,6 +64,14 @@ grid_search.fit(X_train_data, y_train_data)
 # Print the best parameters found by GridSearchCV
 print(f'Best Parameters: {grid_search.best_params_}')
 
+'''
+Best Parameters:    {'max_depth': 10, 
+                    'max_features': 'log2', 
+                    'min_samples_leaf': 2, 
+                    'min_samples_split': 2, 
+                    'n_estimators': 100}
+'''
+
 # Get the best model from GridSearchCV
 best_model = grid_search.best_estimator_
 
@@ -58,19 +82,35 @@ cv_scores = cross_val_score(best_model, X_train_data, y_train_data, cv=kf, scori
 print(f'Cross-Validation Scores: {cv_scores}')
 print(f'Mean Cross-Validation Accuracy: {np.mean(cv_scores)}')
 
+'''
+Cross-Validation Scores: [0.86713287 0.83802817 0.85211268 0.83802817 0.87323944]
+Mean Cross-Validation Accuracy: 0.8537082635674185
+
+Good overall performance with some variability: ~ 4%
+'''
+
+
 # WHEN MODEL IS TUNED TO CROSS-VALIDATION, TEST ON UNSEEN VALIDATION ATA 
 # Evaluate the model on the validation set
 y_val_pred = best_model.predict(X_validation_data)
 val_accuracy = accuracy_score(y_validation_data, y_val_pred)
 print(f'Validation Accuracy: {val_accuracy}')
 
+'''
+Validation Accuracy: 0.8202247191011236
 
+An accuracy of 82.02% on the Titanic dataset is quite good and indicates a 
+well-performing model. To further improve, focus on refined feature engineering, 
+thorough hyperparameter tuning, and potentially leveraging ensemble methods. Keep in 
+mind that incremental improvements can sometimes be achieved through careful 
+experimentation and validation.
+
+'''
 
 # Train on the entire training dataset for final predictions
 best_model.fit(X, y)
 
-# Load the test data // Check this out TODO
-
+# Fit final model for submission. 
 X_test = test_data_cleaned.drop('PassengerId', axis=1)
 
 # Make predictions on the test set
